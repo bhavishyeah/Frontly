@@ -6,13 +6,6 @@ export default defineManifest({
   name: 'Frontly',
   short_name: 'Frontly',
 
-  // Pins the unpacked/dev extension ID to a stable value
-  // (ghbkcboppgcoihgnhjkoioijojlooiho) so chrome.identity OAuth works reliably.
-  // Register THAT id on the Chrome-extension OAuth client in Google Cloud.
-  // If/when this ships on the Chrome Web Store, remove this key and use the
-  // Web Store's assigned extension id for the OAuth client instead.
-  key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwKatrTdeOCwj/1d9mX8eOsw4l9L4jgUG8EBb6akD4VAqfWoivUXl+53xNEPEYNfJvPVzCS51DknnPHgFNk+97aJDtdWCd6gPQLEj8caOuqNsj+W679QIyf0F/4SK2jTQbZvONjOj3lAAD8Fj/f8fqI6MCQWUMHgGJAxPFCi6VNH1h/ZiQICILre+QD959shwIxQZujforRSDZmFCLl2Fd0iuDXaFQDWxsRw955SdAreKVQAV9IeMU/R/NbQ3bLg4K/CBhlMf0EPRX2JZ7Ju9lRV+zdg/ZVBCB3xtr9cdtuRTaQWbz/pSN4BUjta8IYSRFN2v3VGO8ogX9O25o3HbewIDAQAB',
-
   description:
   'Replace every new tab with a beautiful, customizable homepage for bookmarks, notes, tasks, and widgets.',
   
