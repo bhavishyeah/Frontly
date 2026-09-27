@@ -1,8 +1,8 @@
-# Privacy Policy for Frontly (Tabdeck)
+# Privacy Policy for Frontly
 
 **Last updated:** September 21, 2026
 
-Frontly (formerly Tabdeck) is a browser extension that replaces your new tab page with a customizable homepage for bookmarks, notes, tasks, and widgets. This policy explains what data the extension collects, how it is stored, and when it leaves your device.
+Frontly is a browser extension that replaces your new tab page with a customizable homepage for bookmarks, notes, tasks, and widgets. This policy explains what data the extension collects, how it is stored, and when it leaves your device.
 
 ---
 
@@ -48,6 +48,9 @@ When you save links, the extension fetches favicon icons using **Google's Favico
 ### RSS Widget
 If you configure an RSS widget, the extension fetches the RSS feed directly from the URL you provide. The request goes from your browser to that feed's server. No personal data is included in the request.
 
+### Calendar Widget (optional)
+If you use the Calendar widget and connect Google Calendar, the extension requests read-only access to your Google Calendar events using your Chrome Google account via `chrome.identity.getAuthToken`. A read-only OAuth token is obtained and used solely to fetch your calendar events for display. No calendar data is stored, modified, or shared — it is fetched on load and displayed in the widget only. You can disconnect Google Calendar at any time from the widget's settings, which revokes the token.
+
 ### VOLT Widget (optional)
 If you use the VOLT widget and sign in with your VOLT credentials, the extension connects to VOLT's backend (hosted on Supabase) to display your incoming transfers. Your VOLT email and password are sent only to authenticate.
 
@@ -65,7 +68,8 @@ The extension requests the following browser permissions:
 | `tabs` / `activeTab` | Read the current tab's URL and title for the quick-save shortcut (Ctrl+Shift+Z) |
 | `bookmarks` | Import your Chrome bookmarks into boards |
 | `notifications` | Show a notification after quick-saving a tab |
-| `identity` / `identity.email` | Detect if a Chrome account is signed in to determine whether cross-device sync will work — no OAuth login or account access is performed |
+| `identity` / `identity.email` | Detect if a Chrome account is signed in for cross-device sync, and authenticate with Google Calendar (read-only) if the Calendar widget is connected |
+| `contextMenus` | Add a "Send to VOLT ⚡" right-click menu item so you can send any page, link, or selected text to a VOLT contact directly from any webpage |
 | `host_permissions: <all_urls>` | Allow the RSS widget to fetch user-supplied feed URLs, which would otherwise be blocked by browser security policies |
 
 ---
@@ -99,4 +103,4 @@ If we make material changes to this policy, we will update the "Last updated" da
 ## 9. Contact
 
 If you have questions about this privacy policy, please open an issue at:
-[https://github.com/bhavishyeah/Tabdeck/issues](https://github.com/bhavishyeah/Tabdeck/issues)
+[https://github.com/bhavishyeah/Frontly/issues](https://github.com/bhavishyeah/Frontly/issues)
