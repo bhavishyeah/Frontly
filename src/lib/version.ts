@@ -3,7 +3,7 @@
  * Bump APP_VERSION here (alongside manifest.config.ts + package.json) and add
  * a matching entry to WHATS_NEW so the panel shows once after an update.
  */
-export const APP_VERSION = '2.1.0';
+export const APP_VERSION = '2.1.1';
 
 export interface WhatsNewEntry {
   version: string;
@@ -13,6 +13,17 @@ export interface WhatsNewEntry {
 
 /** Newest first. The panel shows entries newer than the user's last-seen version. */
 export const WHATS_NEW: WhatsNewEntry[] = [
+  {
+    version: '2.1.1',
+    title: "What's new in 2.1.1 — Calendar",
+    items: [
+      'New: the 📅 Calendar widget. Add events (title, date, time, note) right on your homepage.',
+      'Connect Google Calendar (read-only) to see your real events, merged with your local ones.',
+      'Month view by default; flip on “Week view” in settings for a compact current-week grid.',
+      'Widen the widget to reveal an upcoming-events column beside the grid.',
+      'Events can live per-widget or be shared across the whole workspace.',
+    ],
+  },
   {
     version: '2.1.0',
     title: "What's new in 2.1.0 — FRONTLY × VOLT",

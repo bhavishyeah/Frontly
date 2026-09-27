@@ -5106,3 +5106,492 @@ textarea:focus-visible,
 
 .f-ac-label { font-size: 12px; font-weight: 600; }
 .f-ac-sub { font-size: 10px; opacity: 0.55; }
+
+
+/* ═══════════════════════════════════════════════════════════
+   📅 CALENDAR WIDGET
+   Wider-than-tall calendar with month mini-grid + agenda.
+   Merges local events with read-only Google Calendar events.
+   Naming: f-cal-*  (scoped under .f-cal)
+   ═══════════════════════════════════════════════════════════ */
+
+.f-cal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  color: inherit;
+  /* Denser: trim the inner padding so the grid uses more of the panel. */
+  padding: var(--f-space-1) var(--f-space-2) var(--f-space-2);
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+/* ── Toolbar ── */
+.f-cal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--f-space-2);
+  flex-shrink: 0;
+}
+
+.f-cal-title {
+  font-size: var(--f-title-size);
+  font-weight: var(--f-title-weight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Header toggle tabs: Calendar | Events (replaces the board name) */
+.f-cal-tabs {
+  display: inline-flex;
+  gap: 2px;
+  background: rgba(127, 127, 127, 0.1);
+  border-radius: var(--f-radius-pill);
+  padding: 2px;
+  min-width: 0;
+}
+
+.f-cal-tab {
+  padding: 3px 10px;
+  border-radius: var(--f-radius-pill);
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: var(--f-micro-size);
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0.6;
+  white-space: nowrap;
+  transition: background var(--f-duration-fast) var(--f-ease), opacity var(--f-duration-fast) var(--f-ease);
+}
+
+.f-cal-tab:hover {
+  opacity: 0.9;
+}
+
+.f-cal-tab.is-active {
+  background: rgba(255, 255, 255, 0.9);
+  color: #1a1a1a;
+  opacity: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.f-cal-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.f-cal-syncing {
+  font-size: var(--f-micro-size);
+  opacity: 0.5;
+}
+
+.f-cal-retry {
+  font-size: var(--f-micro-size);
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--f-radius-pill);
+  border: 1px solid rgba(127, 127, 127, 0.2);
+  background: rgba(127, 127, 127, 0.08);
+  color: inherit;
+  cursor: pointer;
+}
+
+.f-cal-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--f-radius-sm);
+  border: none;
+  background: rgba(99, 102, 241, 0.14);
+  color: inherit;
+  cursor: pointer;
+  transition: background var(--f-duration-fast) var(--f-ease);
+  flex-shrink: 0;
+}
+
+.f-cal-add:hover {
+  background: rgba(99, 102, 241, 0.26);
+}
+
+/* ── Body: one view (tabbed) OR split (grid + events side by side) ── */
+.f-cal-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: var(--f-space-2);
+}
+
+.f-cal-body.is-split {
+  flex-direction: row;
+  gap: var(--f-space-4);
+}
+
+.f-cal-split-grid {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.f-cal-split-events {
+  flex: 0 0 40%;
+  max-width: 260px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-left: 1px solid rgba(127, 127, 127, 0.14);
+  padding-left: var(--f-space-3);
+}
+
+.f-cal-split-events-head {
+  font-size: var(--f-micro-size);
+  font-weight: 700;
+  opacity: 0.55;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+/* ── Month / week grid — fills the widget width AND height ── */
+.f-cal-month {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+/* Month grid rows share the vertical space so there's no dead bottom gap. */
+.f-cal-month--month .f-cal-grid {
+  flex: 1;
+  grid-auto-rows: 1fr;
+}
+
+/* Week mode is a single row — keep it compact, don't stretch it tall. */
+.f-cal-month--week .f-cal-grid {
+  flex: 0 0 auto;
+}
+
+.f-cal-month-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.f-cal-month-label {
+  font-size: var(--f-secondary-size);
+  font-weight: 600;
+  text-align: center;
+  flex: 1;
+}
+
+.f-cal-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: none;
+  color: inherit;
+  opacity: 0.5;
+  cursor: pointer;
+  border-radius: var(--f-radius-xs);
+  flex-shrink: 0;
+}
+
+.f-cal-nav:hover {
+  opacity: 1;
+  background: rgba(127, 127, 127, 0.15);
+}
+
+.f-cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+}
+
+.f-cal-weekday {
+  font-size: calc(9px * var(--f-scale));
+  font-weight: 600;
+  opacity: 0.4;
+  text-align: center;
+}
+
+.f-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  flex: 1;
+}
+
+.f-cal-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+  font-size: calc(10px * var(--f-scale));
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--f-radius-xs);
+  transition: background var(--f-duration-fast) var(--f-ease);
+}
+
+/* Week mode: a single, comfortable row (denser than before, no big squares). */
+.f-cal-month--week .f-cal-cell {
+  height: 32px;
+}
+
+.f-cal-cell:hover {
+  background: rgba(127, 127, 127, 0.14);
+}
+
+.f-cal-cell--blank {
+  cursor: default;
+  pointer-events: none;
+}
+
+.f-cal-cell.is-today {
+  font-weight: 700;
+  color: #6366f1;
+}
+
+.f-cal-cell.is-selected {
+  background: rgba(99, 102, 241, 0.2);
+}
+
+.f-cal-dot {
+  position: absolute;
+  bottom: 2px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+/* ── Agenda ── */
+.f-cal-agenda {
+  display: flex;
+  flex-direction: column;
+  gap: var(--f-space-2);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.f-cal-agenda::-webkit-scrollbar { display: none; }
+
+.f-cal-agenda-empty {
+  font-size: var(--f-secondary-size);
+  opacity: 0.5;
+  align-self: center;
+  margin: auto;
+}
+
+.f-cal-agenda-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.f-cal-agenda-date {
+  font-size: var(--f-micro-size);
+  font-weight: 700;
+  opacity: 0.55;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.f-cal-event {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: var(--f-radius-sm);
+  border: none;
+  border-left: 3px solid rgba(99, 102, 241, 0.6);
+  background: rgba(127, 127, 127, 0.08);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background var(--f-duration-fast) var(--f-ease);
+  min-width: 0;
+}
+
+.f-cal-event:hover {
+  background: rgba(127, 127, 127, 0.16);
+}
+
+.f-cal-event.is-google {
+  cursor: default;
+  border-left-color: rgba(66, 133, 244, 0.7);
+}
+
+.f-cal-event-time {
+  font-size: var(--f-micro-size);
+  opacity: 0.6;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 52px;
+}
+
+.f-cal-event-title {
+  font-size: var(--f-secondary-size);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.f-cal-event-badge {
+  font-size: calc(8px * var(--f-scale));
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: var(--f-radius-xs);
+  background: rgba(66, 133, 244, 0.18);
+  color: #4285f4;
+  flex-shrink: 0;
+}
+
+/* ── Add/edit event form (overlay) ── */
+.f-cal-form-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  border-radius: inherit;
+}
+
+.f-cal-form {
+  width: min(280px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--f-radius-md);
+  background: rgba(252, 251, 249, 0.99);
+  color: #1a1a1a;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+.f-cal-form-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--f-secondary-size);
+  font-weight: 700;
+}
+
+.f-cal-form-close {
+  display: inline-flex;
+  border: none;
+  background: none;
+  cursor: pointer;
+  opacity: 0.5;
+  color: inherit;
+}
+.f-cal-form-close:hover { opacity: 1; }
+
+.f-cal-input {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--f-radius-sm);
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: #fff;
+  color: #1a1a1a;
+  font-size: var(--f-secondary-size);
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.f-cal-input:focus {
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.f-cal-form-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.f-cal-input--time {
+  flex: 1;
+}
+
+.f-cal-form-dash {
+  opacity: 0.4;
+}
+
+.f-cal-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.f-cal-form-spacer {
+  flex: 1;
+}
+
+.f-cal-form-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  border-radius: var(--f-radius-sm);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
+  cursor: pointer;
+}
+.f-cal-form-delete:hover { background: rgba(220, 38, 38, 0.16); }
+
+.f-cal-form-cancel {
+  padding: 5px 12px;
+  border-radius: var(--f-radius-sm);
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: none;
+  color: #1a1a1a;
+  font-size: var(--f-micro-size);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.f-cal-form-save {
+  padding: 5px 14px;
+  border-radius: var(--f-radius-sm);
+  border: none;
+  background: #6366f1;
+  color: #fff;
+  font-size: var(--f-micro-size);
+  font-weight: 700;
+  cursor: pointer;
+}
+.f-cal-form-save:disabled { opacity: 0.5; cursor: not-allowed; }

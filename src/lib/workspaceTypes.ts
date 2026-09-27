@@ -66,6 +66,48 @@ export interface RssConfig {
   count?: number;
 }
 
+/** A calendar event — used by the Calendar widget (local events). */
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  /** Event date, YYYY-MM-DD (local). */
+  date: string;
+  /** Optional start time, HH:MM (24h). Absent = all-day. */
+  time?: string;
+  /** Optional end time, HH:MM (24h). */
+  endTime?: string;
+  /** Optional accent color (hex). */
+  color?: string;
+  /** Optional note/description. */
+  note?: string;
+  /**
+   * Where this event comes from. 'local' events are stored & editable in
+   * FRONTLY; 'google' events are pulled read-only from Google Calendar and
+   * are never persisted (re-fetched each load).
+   */
+  source?: 'local' | 'google';
+}
+
+/** Per-calendar-widget configuration */
+export interface CalendarConfig {
+  /**
+   * When true, local events are stored at the workspace level and shared by
+   * every calendar widget in the workspace. When false (default), each widget
+   * owns its own events on the BoardItem.
+   */
+  sharedCalendar?: boolean;
+  /** Week starts on Sunday (0, default) or Monday (1). */
+  weekStart?: 0 | 1;
+  /** Show a single-week grid instead of the full month (default false = month). */
+  weekView?: boolean;
+  /** @deprecated month vs week is now controlled by weekView. Kept for back-compat. */
+  showMonthGrid?: boolean;
+  /** Whether the user has connected Google Calendar for this widget (default false). */
+  googleConnected?: boolean;
+  /** Number of upcoming days to show in the agenda (default 14). */
+  agendaDays?: number;
+}
+
 /** Per-VOLT-widget configuration */
 export interface VoltConfig {
   /** Max items to display in the widget (default 5) */
@@ -84,7 +126,7 @@ export interface VoltConfig {
 export interface BoardItem {
   id: string;
   name: string;
-  type?: 'links' | 'note' | 'todo' | 'weather' | 'clock' | 'timer' | 'rss' | 'volt';
+  type?: 'links' | 'note' | 'todo' | 'weather' | 'clock' | 'timer' | 'rss' | 'volt' | 'calendar';
   color?: string;
   hideHeader?: boolean;
   noteContent?: string;
@@ -106,6 +148,10 @@ export interface BoardItem {
   rssConfig?: RssConfig;
   /** VOLT widget configuration (only used when type === 'volt') */
   voltConfig?: VoltConfig;
+  /** Calendar widget configuration (only used when type === 'calendar') */
+  calendarConfig?: CalendarConfig;
+  /** Per-widget local calendar events (used when calendarConfig.sharedCalendar is false) */
+  calendarEvents?: CalendarEvent[];
   /**
    * Position/size in grid cells. `gridStep` records the pixel size of one cell
    * at the time the layout was written, so layouts saved under an older grid
@@ -131,6 +177,8 @@ export interface WorkspaceItem {
   wallpaper: string | null;
   videoWallpaper: string | null;
   liveWallpaper: LiveWallpaperType;
+  /** Workspace-shared local calendar events (used by calendar widgets in shared mode). */
+  sharedCalendarEvents?: CalendarEvent[];
   createdAt: number;
   updatedAt: number;
 }

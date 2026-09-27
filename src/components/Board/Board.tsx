@@ -15,6 +15,8 @@ import { ClockWidget } from '../Widgets/ClockWidget';
 import { TimerWidget } from '../Widgets/TimerWidget';
 import { RssWidget } from '../Widgets/RssWidget';
 import { VoltWidget } from '../Widgets/VoltWidget';
+import { CalendarWidget } from '../Widgets/CalendarWidget';
+import { connectGoogleCalendar, disconnectGoogleCalendar } from '../../lib/googleCalendar';
 import { useVoltStore } from '../../store/useVoltStore';
 import { DateTimePicker } from '../UI/DateTimePicker';
 import { Autocomplete } from '../UI/Autocomplete';
@@ -27,12 +29,12 @@ interface Props {
 }
 
 export function Board({ workspaceId, board, workspaces }: Props) {
-  const { removeBoard, renameBoard, addLink, removeLink, renameLink, updateLink, transferBoard, transferLink, setBoardColor, updateNoteContent, updateTodos, duplicateBoard, toggleBoardHeader, setBoardDisplayMode, setBoardIconSize, setBoardSections, setClockConfig, setWeatherConfig, setTimerConfig, setRssConfig, setVoltConfig } =
+  const { removeBoard, renameBoard, addLink, removeLink, renameLink, updateLink, transferBoard, transferLink, setBoardColor, updateNoteContent, updateTodos, duplicateBoard, toggleBoardHeader, setBoardDisplayMode, setBoardIconSize, setBoardSections, setClockConfig, setWeatherConfig, setTimerConfig, setRssConfig, setVoltConfig, setCalendarConfig } =
     useWorkspaceStore();
 
   // Determine if this is a widget (non-link board) — must be before any hooks that use it
   const isWidget = board.type === 'clock' || board.type === 'weather' || board.type === 'note' || board.type === 'todo'
-    || board.type === 'timer' || board.type === 'rss' || board.type === 'volt';
+    || board.type === 'timer' || board.type === 'rss' || board.type === 'volt' || board.type === 'calendar';
 
   const textMode = useSettingsStore((s) => s.textMode);
   const boardTextColor = useSettingsStore((s) => isWidget ? s.widgetTextColor : s.boardTextColor);
@@ -347,7 +349,7 @@ export function Board({ workspaceId, board, workspaces }: Props) {
   return (
     <section
       ref={mergedRef}
-      className={`td-board-panel ${isOver ? 'is-over' : ''} ${showForm ? 'is-form-open' : ''} ${isWidget ? 'td-board-panel--widget' : ''} ${(board.displayMode || defaultDisplayMode) === 'icons-floating' ? 'td-board-panel--floating' : ''}`}
+      className={`td-board-panel ${isOver ? 'is-over' : ''} ${showForm ? 'is-form-open' : ''} ${isWidget ? 'td-board-panel--widget' : ''} ${board.type === 'calendar' ? 'td-board-panel--calendar' : ''} ${(board.displayMode || defaultDisplayMode) === 'icons-floating' ? 'td-board-panel--floating' : ''}`}
       style={boardStyle}
       onContextMenu={handleBoardNameContextMenu}
     >
@@ -359,8 +361,8 @@ export function Board({ workspaceId, board, workspaces }: Props) {
       {/* Drag handle bar */}
       <div className="td-board-drag-bar" />
 
-      {/* Widget config gear (clock / weather / timer / rss / volt) */}
-      {(board.type === 'clock' || board.type === 'weather' || board.type === 'timer' || board.type === 'rss' || board.type === 'volt') && (
+      {/* Widget config gear (clock / weather / timer / rss / volt / calendar) */}
+      {(board.type === 'clock' || board.type === 'weather' || board.type === 'timer' || board.type === 'rss' || board.type === 'volt' || board.type === 'calendar') && (
         <div className="f-widget-config" ref={widgetConfigRef}>
           <button
             type="button"
@@ -592,11 +594,24 @@ export function Board({ workspaceId, board, workspaces }: Props) {
         )
       }
 
+      {widgetConfigOpen && board.type === 'calendar' &&
+        createPortal(
+          <CalendarConfigPopover
+            popRef={widgetPopRef}
+            pos={widgetConfigPos}
+            workspaceId={workspaceId}
+            board={board}
+            setCalendarConfig={setCalendarConfig}
+          />,
+          document.body
+        )
+      }
+
       {(() => {
         const mode = board.displayMode || defaultDisplayMode;
         // All icon modes hide the header
         if (mode === 'icons-vertical' || mode === 'icons-horizontal' || mode === 'icons-floating') return false;
-        if (board.type === 'clock' || board.type === 'weather' || board.type === 'volt') return false;
+        if (board.type === 'clock' || board.type === 'weather' || board.type === 'volt' || board.type === 'calendar') return false;
         if (board.hideHeader) return false;
         return true;
         // Note: timer/rss/speeddial keep their header (it doubles as a title).
@@ -656,6 +671,12 @@ export function Board({ workspaceId, board, workspaces }: Props) {
         <RssWidget config={board.rssConfig} />
       ) : board.type === 'volt' ? (
         <VoltWidget config={board.voltConfig} />
+      ) : board.type === 'calendar' ? (
+        <CalendarWidget
+          workspaceId={workspaceId}
+          board={board}
+          workspace={workspaces.find((w) => w.id === workspaceId)!}
+        />
       ) : (() => {
         // Link board — check display mode
         const mode = board.displayMode || defaultDisplayMode;
@@ -1073,6 +1094,110 @@ function VoltConfigPopover({
           <div className="f-wc-hint">Connect your VOLT account to set a quick-send contact.</div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Calendar config popover
+//
+// Split out because the Google connect/disconnect flow is async and needs its
+// own local state. Options: shared vs per-widget events, week start, month
+// grid toggle, and the Google Calendar connect/disconnect controls.
+// ---------------------------------------------------------------------------
+function CalendarConfigPopover({
+  popRef,
+  pos,
+  workspaceId,
+  board,
+  setCalendarConfig,
+}: {
+  popRef: React.RefObject<HTMLDivElement | null>;
+  pos: { top: number; left: number };
+  workspaceId: string;
+  board: BoardItem;
+  setCalendarConfig: (workspaceId: string, boardId: string, config: import('../../lib/workspaceTypes').CalendarConfig) => void;
+}) {
+  const cfg = board.calendarConfig ?? {};
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
+
+  const handleConnect = async () => {
+    setConnecting(true);
+    setConnectError(null);
+    const result = await connectGoogleCalendar();
+    setConnecting(false);
+    if (result.ok) {
+      setCalendarConfig(workspaceId, board.id, { googleConnected: true });
+    } else {
+      setConnectError(result.error ? `Could not connect: ${result.error}` : 'Could not connect.');
+    }
+  };
+
+  const handleDisconnect = async () => {
+    await disconnectGoogleCalendar();
+    setCalendarConfig(workspaceId, board.id, { googleConnected: false });
+  };
+
+  return (
+    <div
+      ref={popRef}
+      className="f-widget-config-pop"
+      style={{ position: 'fixed', top: pos.top, left: pos.left }}
+    >
+      <div className="f-wc-row">
+        <span className="f-wc-label">Shared across workspace</span>
+        <button
+          type="button"
+          className={`f-toggle ${cfg.sharedCalendar ? 'is-on' : ''}`}
+          onClick={() => setCalendarConfig(workspaceId, board.id, { sharedCalendar: !cfg.sharedCalendar })}
+          aria-label="Toggle shared calendar"
+        ><span className="f-toggle-knob" /></button>
+      </div>
+      <div className="f-wc-hint">
+        {cfg.sharedCalendar
+          ? 'Events are shared by every calendar in this workspace.'
+          : 'Events belong to this calendar widget only.'}
+      </div>
+
+      <div className="f-wc-row">
+        <span className="f-wc-label">Week starts</span>
+        <div className="f-pill-group">
+          <button type="button" className={`f-pill ${(cfg.weekStart ?? 0) === 0 ? 'is-active' : ''}`} onClick={() => setCalendarConfig(workspaceId, board.id, { weekStart: 0 })}>Sun</button>
+          <button type="button" className={`f-pill ${cfg.weekStart === 1 ? 'is-active' : ''}`} onClick={() => setCalendarConfig(workspaceId, board.id, { weekStart: 1 })}>Mon</button>
+        </div>
+      </div>
+
+      <div className="f-wc-row">
+        <span className="f-wc-label">Week view</span>
+        <button
+          type="button"
+          className={`f-toggle ${cfg.weekView ? 'is-on' : ''}`}
+          onClick={() => setCalendarConfig(workspaceId, board.id, { weekView: !cfg.weekView })}
+          aria-label="Toggle week view"
+        ><span className="f-toggle-knob" /></button>
+      </div>
+      <div className="f-wc-hint">
+        {cfg.weekView
+          ? 'Showing the current week. Widen the widget to see this week’s events beside it.'
+          : 'Showing the full month. Widen the widget to see this month’s events beside it.'}
+      </div>
+
+      <div className="td-context-divider" style={{ margin: '6px 0' }} />
+      <div className="f-wc-label" style={{ marginBottom: 4 }}>Google Calendar</div>
+      {cfg.googleConnected ? (
+        <>
+          <div className="f-wc-hint" style={{ color: 'var(--f-success, #16a34a)' }}>Connected ✓ — events sync automatically.</div>
+          <button type="button" className="f-wc-cancel" onClick={handleDisconnect} style={{ marginTop: 6 }}>Disconnect</button>
+        </>
+      ) : (
+        <>
+          <button type="button" className="f-wc-save" onClick={handleConnect} disabled={connecting} style={{ marginTop: 2 }}>
+            {connecting ? 'Connecting…' : 'Connect Google Calendar'}
+          </button>
+          {connectError && <div className="f-wc-hint" style={{ color: 'var(--f-destructive, #dc2626)', marginTop: 4 }}>{connectError}</div>}
+        </>
+      )}
     </div>
   );
 }

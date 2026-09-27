@@ -12,7 +12,7 @@ import {
 import RGL from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
-import { CheckSquare, Clock as ClockIcon, CloudSun, LayoutGrid, Plus, Search, StickyNote, LayoutTemplate, Bookmark, Timer as TimerIcon, Rss as RssIcon, Zap as ZapIcon } from 'lucide-react';
+import { CheckSquare, Clock as ClockIcon, CloudSun, LayoutGrid, Plus, Search, StickyNote, LayoutTemplate, Bookmark, Timer as TimerIcon, Rss as RssIcon, Zap as ZapIcon, Calendar as CalendarIcon } from 'lucide-react';
 import { getStarterTemplateBoards } from '../lib/starterTemplate';
 import { Board } from '../components/Board/Board';
 import { Toolbar } from '../components/UI/Toolbar';
@@ -697,7 +697,7 @@ export function NewTab() {
         (board) =>
           // Widgets (no links) always show; link boards show if name or links match
           board.type === 'note' || board.type === 'todo' || board.type === 'clock' || board.type === 'weather' ||
-          board.type === 'timer' || board.type === 'rss' || board.type === 'volt' ||
+          board.type === 'timer' || board.type === 'rss' || board.type === 'volt' || board.type === 'calendar' ||
           board.name.toLowerCase().includes(query) || board.links.length > 0
       );
   }, [activeWorkspace, search]);
@@ -817,6 +817,16 @@ export function NewTab() {
         contentH = cellsFor(Math.max(listBudget, signinBudget) * fscale);
         // Wide enough to read sender + content + actions comfortably.
         widthBounds.set(board.id, { min: 20 });
+      } else if (board.type === 'calendar') {
+        // Height is content-driven by the view mode (config), NOT drag-resized:
+        //  - week view  → toolbar + weekday row + one week row  (~compact)
+        //  - month view → toolbar + weekday row + up to 6 week rows
+        const weekView = board.calendarConfig?.weekView ?? false;
+        const gridPx = weekView ? 74 : 190;
+        contentH = cellsFor((26 + gridPx) * fscale);
+        // Min width fits a comfortable grid. Max caps at the split layout
+        // width (grid + upcoming-events column) so it can't overstretch.
+        widthBounds.set(board.id, { min: 22, max: 40 });
       } else if (board.type === 'note') {
         const lineCount = Math.max((board.noteContent || '').split('\n').length, 2);
         const headerRows = board.hideHeader ? 0 : ROWS_PER_LINK;
@@ -1516,6 +1526,18 @@ const handleImportBookmarks = async (folderId?: string) => {
                   >
                     <ZapIcon size={14} strokeWidth={2} />
                     <span>VOLT</span>
+                  </button>
+                  <button
+                    className="td-link-context-item"
+                    type="button"
+                    onClick={() => {
+                      setWidgetsOpen(false);
+                      if (activeWorkspace.boards.length >= MAX_BOARDS_PER_WORKSPACE) { showToast('Workspace full', 'error'); return; }
+                      useWorkspaceStore.getState().addCalendarBoard(activeWorkspace.id);
+                    }}
+                  >
+                    <CalendarIcon size={14} strokeWidth={2} />
+                    <span>Calendar</span>
                   </button>
                 </div>
               )}

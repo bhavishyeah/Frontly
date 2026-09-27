@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
-import type { BoardItem, BoardDisplayMode, IconSize, LinkItem, LiveWallpaperType, TodoItem, WorkspaceItem } from '../lib/workspaceTypes';
+import type { BoardItem, BoardDisplayMode, CalendarConfig, CalendarEvent, IconSize, LinkItem, LiveWallpaperType, TodoItem, WorkspaceItem } from '../lib/workspaceTypes';
 import { MAX_BOARDS_PER_WORKSPACE, MAX_LINKS_PER_BOARD } from '../lib/bookmarkImport';
 import { GRID_STEP, gridExtent } from '../lib/useGridDimensions';
 import { useSettingsStore } from './useSettingsStore';
@@ -76,9 +76,15 @@ interface WorkspaceState {
   addTimerBoard: (workspaceId: string) => void;
   addRssBoard: (workspaceId: string) => void;
   addVoltBoard: (workspaceId: string) => void;
+  addCalendarBoard: (workspaceId: string) => void;
   setTimerConfig: (workspaceId: string, boardId: string, config: import('../lib/workspaceTypes').TimerConfig) => void;
   setRssConfig: (workspaceId: string, boardId: string, config: import('../lib/workspaceTypes').RssConfig) => void;
   setVoltConfig: (workspaceId: string, boardId: string, config: import('../lib/workspaceTypes').VoltConfig) => void;
+  setCalendarConfig: (workspaceId: string, boardId: string, config: CalendarConfig) => void;
+  /** Add a local calendar event. Routes to workspace-shared or per-widget storage based on the widget's sharedCalendar config. */
+  addCalendarEvent: (workspaceId: string, boardId: string, event: Omit<CalendarEvent, 'id' | 'source'>) => void;
+  updateCalendarEvent: (workspaceId: string, boardId: string, eventId: string, patch: Partial<Omit<CalendarEvent, 'id' | 'source'>>) => void;
+  removeCalendarEvent: (workspaceId: string, boardId: string, eventId: string) => void;
   duplicateBoard: (workspaceId: string, boardId: string) => void;
   updateNoteContent: (workspaceId: string, boardId: string, content: string) => void;
   updateTodos: (workspaceId: string, boardId: string, todos: TodoItem[]) => void;
@@ -275,6 +281,37 @@ export const useWorkspaceStore = create<WorkspaceState>()(
                     showImages: true,
                     showFiles: true,
                   },
+                  layout,
+                },
+              ],
+              updatedAt: now(),
+            };
+          }),
+        })),
+
+      addCalendarBoard: (workspaceId) =>
+        set((state) => ({
+          workspaces: state.workspaces.map((workspace) => {
+            if (workspace.id !== workspaceId) return workspace;
+            if (workspace.boards.length >= MAX_BOARDS_PER_WORKSPACE) return workspace;
+            const base = placeNewBoard(workspace.boards.length);
+            // Calendar is wider than tall — needs room for the month grid + agenda.
+            const layout = { ...base, w: Math.min(40, Math.max(28, base.w)) };
+            return {
+              ...workspace,
+              boards: [
+                ...workspace.boards,
+                {
+                  ...createBoard('Calendar'),
+                  type: 'calendar' as const,
+                  calendarConfig: {
+                    sharedCalendar: false,
+                    weekStart: 0 as const,
+                    showMonthGrid: true,
+                    googleConnected: false,
+                    agendaDays: 14,
+                  },
+                  calendarEvents: [],
                   layout,
                 },
               ],
@@ -530,6 +567,112 @@ export const useWorkspaceStore = create<WorkspaceState>()(
                 }
               : workspace
           ),
+        })),
+
+      setCalendarConfig: (workspaceId, boardId, config) =>
+        set((state) => ({
+          workspaces: state.workspaces.map((workspace) =>
+            workspace.id === workspaceId
+              ? {
+                  ...workspace,
+                  boards: workspace.boards.map((board) =>
+                    board.id === boardId
+                      ? { ...board, calendarConfig: { ...board.calendarConfig, ...config }, updatedAt: now() }
+                      : board
+                  ),
+                  updatedAt: now(),
+                }
+              : workspace
+          ),
+        })),
+
+      addCalendarEvent: (workspaceId, boardId, event) =>
+        set((state) => ({
+          workspaces: state.workspaces.map((workspace) => {
+            if (workspace.id !== workspaceId) return workspace;
+            const board = workspace.boards.find((b) => b.id === boardId);
+            const shared = board?.calendarConfig?.sharedCalendar ?? false;
+            const newEvent: CalendarEvent = { ...event, id: uid(), source: 'local' };
+
+            if (shared) {
+              // Store on the workspace so every calendar widget sees it.
+              return {
+                ...workspace,
+                sharedCalendarEvents: [...(workspace.sharedCalendarEvents ?? []), newEvent],
+                updatedAt: now(),
+              };
+            }
+            // Store on this specific board.
+            return {
+              ...workspace,
+              boards: workspace.boards.map((b) =>
+                b.id === boardId
+                  ? { ...b, calendarEvents: [...(b.calendarEvents ?? []), newEvent], updatedAt: now() }
+                  : b
+              ),
+              updatedAt: now(),
+            };
+          }),
+        })),
+
+      updateCalendarEvent: (workspaceId, boardId, eventId, patch) =>
+        set((state) => ({
+          workspaces: state.workspaces.map((workspace) => {
+            if (workspace.id !== workspaceId) return workspace;
+            const board = workspace.boards.find((b) => b.id === boardId);
+            const shared = board?.calendarConfig?.sharedCalendar ?? false;
+
+            if (shared) {
+              return {
+                ...workspace,
+                sharedCalendarEvents: (workspace.sharedCalendarEvents ?? []).map((e) =>
+                  e.id === eventId ? { ...e, ...patch } : e
+                ),
+                updatedAt: now(),
+              };
+            }
+            return {
+              ...workspace,
+              boards: workspace.boards.map((b) =>
+                b.id === boardId
+                  ? {
+                      ...b,
+                      calendarEvents: (b.calendarEvents ?? []).map((e) =>
+                        e.id === eventId ? { ...e, ...patch } : e
+                      ),
+                      updatedAt: now(),
+                    }
+                  : b
+              ),
+              updatedAt: now(),
+            };
+          }),
+        })),
+
+      removeCalendarEvent: (workspaceId, boardId, eventId) =>
+        set((state) => ({
+          workspaces: state.workspaces.map((workspace) => {
+            if (workspace.id !== workspaceId) return workspace;
+            const board = workspace.boards.find((b) => b.id === boardId);
+            const shared = board?.calendarConfig?.sharedCalendar ?? false;
+
+            if (shared) {
+              return {
+                ...workspace,
+                sharedCalendarEvents: (workspace.sharedCalendarEvents ?? []).filter((e) => e.id !== eventId),
+                updatedAt: now(),
+              };
+            }
+            return {
+              ...workspace,
+              boards: workspace.boards.map((b) =>
+                b.id === boardId
+                  ? { ...b, calendarEvents: (b.calendarEvents ?? []).filter((e) => e.id !== eventId), updatedAt: now() }
+                  : b
+              ),
+              updatedAt: now(),
+            };
+          }),
         })),
 
       removeBoard: (workspaceId, boardId) =>
